@@ -18,7 +18,7 @@ class ProductMapper{
       (json['images']as List).cast<String>().map(
         (String image)=>image.startsWith('http')
         ? image
-        : '${Environment.apiUrl}/api/files/product/$image'
+        : '${Environment.apiUrl}/files/product/$image'
         )
     ), 
     user: UserMapper.userJsonToEntity(json['user'])
