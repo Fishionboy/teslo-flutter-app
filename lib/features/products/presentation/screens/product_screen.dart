@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:teslo_shop/features/products/domain/domain.dart';
 import 'package:teslo_shop/features/products/presentation/providers/providers.dart';
+import 'package:teslo_shop/features/shared/shared.dart';
 import 'package:teslo_shop/features/shared/widgets/widgets.dart';
 
 class ProductScreen extends ConsumerWidget {
@@ -22,33 +25,50 @@ class ProductScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productState = ref.watch(productProvider(productId));
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Editar Producto'),
-        actions: [
-          IconButton(onPressed: () {
-            
-          }, 
-          icon: const Icon(Icons.camera_alt_outlined))
-        ],
-      ),
-      body: productState.isLoading
-      ? const FullScreenLoader()
-      : _ProductView(product: productState.product!),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if(productState.product == null)  return;
-          ref.read(
-            productFormProvider(productState.product!).notifier
-            ).onFormSubmit()
-            .then((value){
-              if(!value) return;
-              if (context.mounted) showSnackbar(context);
-            });
-          
-        },
-        child: const Icon(Icons.save_as_outlined),
+    return GestureDetector(
+      onTap: ()=>  FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Editar Producto'),
+          actions: [
+            IconButton(
+            icon: const Icon(Icons.photo_library_outlined),
+            onPressed: () async {     
+              final photoPath = await CameraGalleryServiceImpl().selectPhoto();   
+              if(photoPath == null)return;
+
+              ref.read(productFormProvider(productState.product!).notifier)
+              .updateProductImage(photoPath);
+
+            }),
+            IconButton(
+            icon: const Icon(Icons.camera_alt_outlined),
+            onPressed: ()async { 
+              final photoPath = await CameraGalleryServiceImpl().takePhoto();   
+              if(photoPath == null)return;
+              ref.read(productFormProvider(productState.product!).notifier)
+              .updateProductImage(photoPath);              
+            }),
+          ],
         ),
+        body: productState.isLoading
+        ? const FullScreenLoader()
+        : _ProductView(product: productState.product!),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            if(productState.product == null)  return;
+            ref.read(
+              productFormProvider(productState.product!).notifier
+              ).onFormSubmit()
+              .then((value){
+                if(!value) return;
+                if (context.mounted) showSnackbar(context);
+              });
+            
+          },
+          child: const Icon(Icons.save_as_outlined),
+          ),
+      ),
     );
   }
 }
@@ -199,6 +219,7 @@ class _SizeSelector extends StatelessWidget {
       }).toList(), 
       selected: Set.from( selectedSizes ),
       onSelectionChanged: (newSelection) {
+           FocusScope.of(context).unfocus();
         onSizesChanged(List.from(newSelection));
       },
       multiSelectionEnabled: true,
@@ -239,6 +260,7 @@ class _GenderSelector extends StatelessWidget {
         }).toList(), 
         selected: { selectedGender },
         onSelectionChanged: (newSelection) {
+          FocusScope.of(context).unfocus();
           onGenderChanged(newSelection.first);
         },
       ),
@@ -254,20 +276,35 @@ class _ImageGallery extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
+    if(images.isEmpty){
+    return ClipRRect(
+            borderRadius: const BorderRadius.all(Radius.circular(20)),
+            child: Image.asset('assets/images/no-image.jpg', fit: BoxFit.cover )
+            );
+    }
+
     return PageView(
       scrollDirection: Axis.horizontal,
       controller: PageController(
         viewportFraction: 0.7
       ),
-      children: images.isEmpty
-        ? [ ClipRRect(
-            borderRadius: const BorderRadius.all(Radius.circular(20)),
-            child: Image.asset('assets/images/no-image.jpg', fit: BoxFit.cover )) 
-        ]
-        : images.map((e){
-          return ClipRRect(
-            borderRadius: const BorderRadius.all(Radius.circular(20)),
-            child: Image.network(e, fit: BoxFit.cover,),
+      children: images.map((image){
+
+        late ImageProvider imageProvider;
+        if(image.startsWith('http')){
+          imageProvider = NetworkImage(image);
+        } else{
+          imageProvider = FileImage(File(image));
+        }
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(20)),
+              child: FadeInImage(
+                fit:BoxFit.cover, 
+                placeholder: const AssetImage('assets/loaders/bottle-loader.gif'), 
+                image: imageProvider)
+            )
           );
       }).toList(),
     );
